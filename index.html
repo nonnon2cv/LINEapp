@@ -312,9 +312,21 @@
             <h2>新規予約</h2>
             <form id="reservationForm" novalidate>
                 <div class="form-group" id="group-name">
-                    <label for="name">お名前 <span class="required">必須</span></label>
+                    <label for="name">代表者氏名 <span class="required">必須</span></label>
                     <input type="text" id="name" class="form-control" placeholder="例: 山田 太郎">
-                    <div class="error-message">お名前を入力してください</div>
+                    <div class="error-message">代表者氏名を入力してください</div>
+                </div>
+
+                <div class="form-group" id="group-phone">
+                    <label for="phone">電話番号 <span class="required">必須</span></label>
+                    <input type="tel" id="phone" class="form-control" placeholder="例: 090-1234-5678">
+                    <div class="error-message">電話番号を入力してください</div>
+                </div>
+
+                <div class="form-group" id="group-people">
+                    <label for="people">人数 <span class="required">必須</span></label>
+                    <input type="number" id="people" class="form-control" min="1" max="20" placeholder="例: 2">
+                    <div class="error-message">人数を入力してください</div>
                 </div>
 
                 <div class="form-group" id="group-date">
@@ -403,12 +415,22 @@
                 let isValid = true;
 
                 const name = document.getElementById('name').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const people = document.getElementById('people').value.trim();
                 const date = document.getElementById('date').value;
                 const time = document.getElementById('time').value;
                 const memo = document.getElementById('memo').value.trim();
 
                 if (!name) {
                     document.getElementById('group-name').classList.add('has-error');
+                    isValid = false;
+                }
+                if (!phone) {
+                    document.getElementById('group-phone').classList.add('has-error');
+                    isValid = false;
+                }
+                if (!people || parseInt(people, 10) < 1) {
+                    document.getElementById('group-people').classList.add('has-error');
                     isValid = false;
                 }
                 if (!date) {
@@ -433,6 +455,8 @@
                 const newReservation = {
                     id: Date.now().toString(),
                     name,
+                    phone,
+                    people,
                     date,
                     time,
                     memo,
@@ -493,7 +517,9 @@
                             <div class="res-header">
                                 <div class="res-datetime">${formattedDate} ${dayDisplay} ${res.time}</div>
                             </div>
-                            <div class="res-name"><span style="font-size:12px;color:#666;margin-right:4px;">お名前:</span>${escapeHTML(res.name)} 様</div>
+                            <div class="res-name"><span style="font-size:12px;color:#666;margin-right:4px;">代表者氏名:</span>${escapeHTML(res.name)} 様</div>
+                            ${res.phone ? `<div class="res-name" style="margin-top:4px;"><span style="font-size:12px;color:#666;margin-right:4px;">電話番号:</span>${escapeHTML(res.phone)}</div>` : ''}
+                            ${res.people ? `<div class="res-name" style="margin-top:4px;"><span style="font-size:12px;color:#666;margin-right:4px;">人数:</span>${escapeHTML(res.people)} 名</div>` : ''}
                             ${memoHtml}
                         </div>
                     `;
