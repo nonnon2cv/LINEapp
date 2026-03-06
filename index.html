@@ -338,17 +338,8 @@
 
                 <div class="form-group" id="group-time">
                     <label for="time">ご希望時間 <span class="required">必須</span></label>
-                    <select id="time" class="form-control">
-                        <option value="">選択してください</option>
-                        <option value="10:00">10:00</option>
-                        <option value="11:00">11:00</option>
-                        <option value="12:00">12:00</option>
-                        <option value="13:00">13:00</option>
-                        <option value="14:00">14:00</option>
-                        <option value="15:00">15:00</option>
-                        <option value="16:00">16:00</option>
-                        <option value="17:00">17:00</option>
-                        <option value="18:00">18:00</option>
+                    <select id="time" class="form-control" disabled>
+                        <option value="">日付を選択して、空き時間を確認してください</option>
                     </select>
                     <div class="error-message">時間を選択してください</div>
                 </div>
@@ -380,6 +371,9 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
 
     <script>
+        // 【重要】Google Apps ScriptをデプロイしたWebアプリのURLをここに貼り付けてください
+        const GAS_WEB_APP_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
+
         document.addEventListener('DOMContentLoaded', () => {
 
             // Flatpickr カレンダーの初期化
@@ -393,9 +387,59 @@
                     // 選択されたらエラー状態を解除
                     if (dateStr) {
                         document.getElementById('group-date').classList.remove('has-error');
+                        fetchAvailableTimes(dateStr);
                     }
                 }
             });
+
+            // GASから空き時間を取得してセレクトボックスを更新する関数
+            async function fetchAvailableTimes(dateStr) {
+                const timeSelect = document.getElementById('time');
+
+                if (GAS_WEB_APP_URL === 'YOUR_GAS_WEB_APP_URL_HERE') {
+                    // まだGAS連携設定がされていない場合は、デモとして全枠表示
+                    timeSelect.innerHTML = '<option value="">⚠️連携前なので架空の全枠を表示します</option>';
+                    for (let i = 10; i <= 18; i++) {
+                        timeSelect.innerHTML += `<option value="${i}:00">${i}:00</option>`;
+                    }
+                    timeSelect.disabled = false;
+                    return;
+                }
+
+                timeSelect.innerHTML = '<option value="">空き枠を確認中...</option>';
+                timeSelect.disabled = true;
+
+                try {
+                    // GETリクエストで空き状況を取得
+                    const response = await fetch(`${GAS_WEB_APP_URL}?action=getSlots&date=${dateStr}`);
+                    const result = await response.json();
+
+                    if (result.error) {
+                        alert('エラー: ' + result.error);
+                        timeSelect.innerHTML = '<option value="">取得エラー</option>';
+                        return;
+                    }
+
+                    const slots = result.slots || [];
+                    timeSelect.innerHTML = '<option value="">選択してください</option>';
+
+                    if (slots.length === 0) {
+                        timeSelect.innerHTML = '<option value="">この日は予約がいっぱいです</option>';
+                        timeSelect.disabled = true;
+                    } else {
+                        slots.forEach(slot => {
+                            const option = document.createElement('option');
+                            option.value = slot;
+                            option.textContent = slot; // (例: 10:00)
+                            timeSelect.appendChild(option);
+                        });
+                        timeSelect.disabled = false; // 選択可能にする
+                    }
+                } catch (error) {
+                    console.error('Error fetching slots:', error);
+                    timeSelect.innerHTML = '<option value="">通信エラーが発生しました</option>';
+                }
+            }
 
             // 予約データ配列
             let reservations = JSON.parse(localStorage.getItem('line_app_reservations')) || [];
@@ -451,27 +495,75 @@
                     return;
                 }
 
-                // 予約追加
+                const submitBtn = document.querySelector('.btn-submit');
+                const originalBtnText = submitBtn.textContent;
+                submitBtn.textContent = '予約を送信中...';
+                submitBtn.disabled = true;
+
+                // 予約追加用のデータオブジェクト
                 const newReservation = {
-                    id: Date.now().toString(),
                     name,
                     phone,
                     people,
                     date,
                     time,
-                    memo,
-                    createdAt: new Date().toISOString()
+                    memo
                 };
 
-                reservations.unshift(newReservation);
-                saveReservations();
-                renderReservations();
+                if (GAS_WEB_APP_URL !== 'YOUR_GAS_WEB_APP_URL_HERE') {
+                    // GASへのPOST送信処理
+                    fetch(GAS_WEB_APP_URL, {
+                        method: 'POST',
+                        // CORSを回避するため、fetch()のcontent-typeとしてtext/plainを使い単純な文字列化として送ります
+                        body: JSON.stringify(newReservation),
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8',
+                        }
+                    })
+                        .then(res => res.json())
+                        .then(result => {
+                            if (result.error) {
+                                alert('予約に失敗しました:\n' + result.error);
+                                submitBtn.textContent = originalBtnText;
+                                submitBtn.disabled = false;
+                            } else {
+                                // 成功時
+                                completeReservationLocal(newReservation);
+                                // 同じ日の空き時間を再取得
+                                fetchAvailableTimes(date);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Submit error:', error);
+                            alert('通信エラーが発生しました。インターネット接続を確認してください。');
+                            submitBtn.textContent = originalBtnText;
+                            submitBtn.disabled = false;
+                        });
+                } else {
+                    // GAS連携前のデモ動作用コード
+                    completeReservationLocal(newReservation);
+                }
 
-                // リセット処理
-                form.reset();
-                fp.clear(); // カレンダーの選択状態をクリア
+                // 予約成功後にローカルで画面を更新する処理
+                function completeReservationLocal(data) {
+                    submitBtn.textContent = originalBtnText;
+                    submitBtn.disabled = false;
 
-                showToast();
+                    // 一覧表示・ローカル保存用
+                    data.id = Date.now().toString();
+                    data.createdAt = new Date().toISOString();
+
+                    reservations.unshift(data);
+                    saveReservations();
+                    renderReservations();
+
+                    form.reset();
+                    fp.clear();
+                    document.getElementById('time').disabled = true;
+                    document.getElementById('time').innerHTML = '<option value="">日付を選択して、空き時間を確認してください</option>';
+
+                    showToast();
+                }
             });
 
             function saveReservations() {
