@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>予約受付 - LINEミニアプリ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Flatpickr CSS (カレンダーライブラリ) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        :root {
+            --line-green: #06C755;
+            --line-green-hover: #05b34c;
+            --bg-color: #f4f5f7;
+            --text-main: #111111;
+            --text-sub: #666666;
+            --border-color: #e5e5e5;
+            --error-color: #ff334b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans JP', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            padding-bottom: 80px;
+        }
+
+        header {
+            background-color: #ffffff;
+            padding: 16px 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            color: var(--text-main);
+        }
+
+        .card h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background-color: var(--line-green);
+            border-radius: 2px;
+            margin-right: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-sub);
+        }
+
+        .form-group label .required {
+            color: var(--error-color);
+            margin-left: 4px;
+            font-size: 12px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 15px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            background-color: #fafafa;
+            transition: all 0.2s ease;
+            appearance: none;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--line-green);
+            background-color: #ffffff;
+            box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.1);
+        }
+
+        textarea.form-control {
+            resize: none;
+            min-height: 100px;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .form-group.has-error .form-control {
+            border-color: var(--error-color);
+            background-color: #fffafb;
+        }
+
+        .form-group.has-error .error-message {
+            display: block;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background-color: var(--line-green);
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            box-shadow: 0 4px 12px rgba(6, 199, 85, 0.2);
+            margin-top: 10px;
+        }
+
+        .btn-submit:active {
+            background-color: var(--line-green-hover);
+            transform: scale(0.98);
+        }
+
+        /* カスタムカレンダー (LINE風) */
+        .flatpickr-calendar.inline {
+            margin: 8px auto 0;
+            box-shadow: none;
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            padding: 10px 0;
+        }
+
+        .form-group.has-error .flatpickr-calendar.inline {
+            border-color: var(--error-color);
+            background-color: #fffafb;
+        }
+
+        .flatpickr-day.selected,
+        .flatpickr-day.selected:focus,
+        .flatpickr-day.selected:hover,
+        .flatpickr-day.selected.prevMonthDay,
+        .flatpickr-day.selected.nextMonthDay {
+            background: var(--line-green);
+            border-color: var(--line-green);
+        }
+
+        .flatpickr-day {
+            border-radius: 8px;
+            /* 丸より少し角丸でモダンに */
+        }
+
+        /* 非表示用 (カレンダーをそのまま表示するため) */
+        input#date {
+            display: none;
+        }
+
+        /* 予約一覧のスタイル */
+        .reservation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .reservation-item {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            background-color: #ffffff;
+            position: relative;
+            overflow: hidden;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .reservation-item::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: var(--line-green);
+        }
+
+        .res-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .res-datetime {
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .res-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .res-memo {
+            font-size: 13px;
+            color: var(--text-sub);
+            white-space: pre-wrap;
+            margin-top: 8px;
+            background: #f9f9f9;
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 0;
+            color: var(--text-sub);
+            font-size: 14px;
+        }
+
+        .empty-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .toast.show {
+            bottom: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>予約受付</h1>
+    </header>
+
+    <div class="container">
+        <!-- 予約フォーム -->
+        <div class="card">
+            <h2>新規予約</h2>
+            <form id="reservationForm" novalidate>
+                <div class="form-group" id="group-name">
+                    <label for="name">お名前 <span class="required">必須</span></label>
+                    <input type="text" id="name" class="form-control" placeholder="例: 山田 太郎">
+                    <div class="error-message">お名前を入力してください</div>
+                </div>
+
+                <div class="form-group" id="group-date">
+                    <label for="date">ご希望日 <span class="required">必須</span></label>
+                    <!-- Flatpickr でカレンダー化するためのインプット -->
+                    <input type="text" id="date" placeholder="日付を選択" readonly>
+                    <div class="error-message" style="margin-top: 4px;">日付を選択してください</div>
+                </div>
+
+                <div class="form-group" id="group-time">
+                    <label for="time">ご希望時間 <span class="required">必須</span></label>
+                    <select id="time" class="form-control">
+                        <option value="">選択してください</option>
+                        <option value="10:00">10:00</option>
+                        <option value="11:00">11:00</option>
+                        <option value="12:00">12:00</option>
+                        <option value="13:00">13:00</option>
+                        <option value="14:00">14:00</option>
+                        <option value="15:00">15:00</option>
+                        <option value="16:00">16:00</option>
+                        <option value="17:00">17:00</option>
+                        <option value="18:00">18:00</option>
+                    </select>
+                    <div class="error-message">時間を選択してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="memo">メモ・ご要望 <span
+                            style="font-size: 11px; margin-left:4px; font-weight: normal;">(任意)</span></label>
+                    <textarea id="memo" class="form-control" placeholder="アレルギーや事前に伝えておきたいことなどがあればご記入ください。"></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit">予約を確定する</button>
+            </form>
+        </div>
+
+        <!-- 予約一覧 -->
+        <div class="card">
+            <h2>予約一覧</h2>
+            <div id="reservationList" class="reservation-list">
+                <!-- Javascriptで一覧を生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast">予約が完了しました！</div>
+
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Flatpickr カレンダーの初期化
+            const dateInput = document.getElementById('date');
+            const fp = flatpickr(dateInput, {
+                locale: "ja",             // 日本語化
+                minDate: "today",         // 過去の日付を選択不可に
+                inline: true,             // スマホ画面にそのままカレンダーを展開表示
+                disableMobile: true,      // スマホのネイティブピッカーではなくこれを強制表示
+                onChange: function (selectedDates, dateStr, instance) {
+                    // 選択されたらエラー状態を解除
+                    if (dateStr) {
+                        document.getElementById('group-date').classList.remove('has-error');
+                    }
+                }
+            });
+
+            // 予約データ配列
+            let reservations = JSON.parse(localStorage.getItem('line_app_reservations')) || [];
+
+            const form = document.getElementById('reservationForm');
+            const listContainer = document.getElementById('reservationList');
+            const toast = document.getElementById('toast');
+
+            renderReservations();
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                // バリデーション状態のリセット
+                document.querySelectorAll('.form-group').forEach(el => el.classList.remove('has-error'));
+
+                let isValid = true;
+
+                const name = document.getElementById('name').value.trim();
+                const date = document.getElementById('date').value;
+                const time = document.getElementById('time').value;
+                const memo = document.getElementById('memo').value.trim();
+
+                if (!name) {
+                    document.getElementById('group-name').classList.add('has-error');
+                    isValid = false;
+                }
+                if (!date) {
+                    document.getElementById('group-date').classList.add('has-error');
+                    isValid = false;
+                }
+                if (!time) {
+                    document.getElementById('group-time').classList.add('has-error');
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    // エラーがある最初の要素へスクロール
+                    const firstError = document.querySelector('.has-error');
+                    if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+
+                // 予約追加
+                const newReservation = {
+                    id: Date.now().toString(),
+                    name,
+                    date,
+                    time,
+                    memo,
+                    createdAt: new Date().toISOString()
+                };
+
+                reservations.unshift(newReservation);
+                saveReservations();
+                renderReservations();
+
+                // リセット処理
+                form.reset();
+                fp.clear(); // カレンダーの選択状態をクリア
+
+                showToast();
+            });
+
+            function saveReservations() {
+                localStorage.setItem('line_app_reservations', JSON.stringify(reservations));
+            }
+
+            function renderReservations() {
+                // 中身が空の場合
+                if (reservations.length === 0) {
+                    listContainer.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📅</div>
+                            <p>現在、予約はありません。</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                listContainer.innerHTML = '';
+
+                // 昇順ソート (表示用)
+                const sorted = [...reservations].sort((a, b) => {
+                    const dateA = new Date(`${a.date}T${a.time}`);
+                    const dateB = new Date(`${b.date}T${b.time}`);
+                    return dateA - dateB;
+                });
+
+                sorted.forEach(res => {
+                    // 表示用日付フォーマット
+                    let formattedDate = res.date;
+                    let dayOfWeek = "";
+                    try {
+                        const resDate = new Date(res.date);
+                        formattedDate = `${resDate.getMonth() + 1}月${resDate.getDate()}日`;
+                        dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][resDate.getDay()];
+                    } catch (e) { }
+
+                    const memoHtml = res.memo ? `<div class="res-memo">${escapeHTML(res.memo)}</div>` : '';
+                    const dayDisplay = dayOfWeek ? `(${dayOfWeek})` : '';
+
+                    const itemHtml = `
+                        <div class="reservation-item">
+                            <div class="res-header">
+                                <div class="res-datetime">${formattedDate} ${dayDisplay} ${res.time}</div>
+                            </div>
+                            <div class="res-name"><span style="font-size:12px;color:#666;margin-right:4px;">お名前:</span>${escapeHTML(res.name)} 様</div>
+                            ${memoHtml}
+                        </div>
+                    `;
+                    listContainer.insertAdjacentHTML('beforeend', itemHtml);
+                });
+            }
+
+            function showToast() {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+
+            // XSS対策
+            function escapeHTML(str) {
+                return str.replace(/[&<>'"]/g,
+                    tag => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        "'": '&#39;',
+                        '"': '&quot;'
+                    }[tag])
+                );
+            }
+        });
+    </script>
+</body>
+
+</html>
